@@ -1,0 +1,2 @@
+Columns deleted: timestamp, columns with only null values, and description columns.
+If we want to look at exiting homelessness issue, the possible values in column RECORD_TYPE_NAME__C include "Housing_Placement" and "Housing_Prevention", which I believe are all the relevant instances. 
