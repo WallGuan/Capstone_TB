@@ -4,7 +4,7 @@
 
 ## Description
 
-This Emory University capstone project, in collaboration with TechBridge, analyzed collaborative service data from the HomeBridger platform to enhance nonprofit effectiveness. The goal was to provide actionable insights for optimizing service delivery and improving client outcomes.
+This Emory University capstone project, in collaboration with TechBridge, analyzed collaborative service data from the HomeBridger platform to enhance nonprofit effectiveness. The goal was to provide actionable insights for optimizing service delivery and improving client outcomes. For more detailed information, please refer to our [final presentation](techbridge_presentation_slides.pdf) and [white paper](techbridge_white_paper.pdf).
 
 **Key Findings:**
 
