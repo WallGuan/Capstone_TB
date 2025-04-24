@@ -1,27 +1,111 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
-import nltk
-import matplotlib.pyplot as plt
-import re
-import io
-from scipy.stats import chi2_contingency
 import calendar
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
+from scipy.stats import chi2_contingency
 import warnings
+import io
 warnings.filterwarnings("ignore")
-# Define a custom color palette for consistency
-color_success = "#2ecc71"  # Green
-color_failure = "#e74c3c"  # Red
-color_neutral = "#3498db"  # Blue
-color_palette = px.colors.qualitative.Pastel
 
-# mapping for severity levels - this will be utilized in our enhanced analysis
+# Define color palette for consistency
+color_success = "#90F7B7"  # Light mint green
+color_failure = "#E83DDC"  # Magenta
+color_neutral = "#32BDC2"  # Teal
+color_dark = "#3300CC"     # Deep navy/indigo
+color_accent = "#39D9CB"   # Bright teal
+color_secondary = "#4ADCB2"  # Green-teal
+color_highlight = "#6A22CF"  # Purple
+
+# Custom color palettes for different types of charts
+color_gradient_success = ["#90F7B7", "#4ADCB2", "#32BDC2"]  # Green gradient
+color_gradient_failure = ["#6A22CF", "#9B4DDD", "#E83DDC"]  # Purple gradient
+color_palette = [color_highlight, color_accent, color_secondary, color_success, color_failure, color_neutral]
+
+# Create custom color scales for continuous variables
+custom_rdylgn = [[0, "#E83DDC"], [0.5, "#32BDC2"], [1, "#90F7B7"]]  # Purple to teal to mint
+custom_blue_purple = [[0, "#32BDC2"], [1, "#6A22CF"]]  # Teal to Purple
+custom_reds = [[0, "#F8F9FA"], [1, "#E83DDC"]]  # White to magenta
+custom_greens = [[0, "#F8F9FA"], [1, "#32BDC2"]]  # White to teal
+
+# Page configuration
+st.set_page_config(
+    page_title="HomeBridger Data Dashboard",
+    page_icon="🏠",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'About': 'Dashboard for analyzing HomeBridger services data'
+    }
+)
+
+# Configure Streamlit theme
+st.markdown("""
+    <style>
+        /* Override Streamlit's default theme */
+        :root {
+            --primary-color: #3300CC;
+            --background-color: #f8f9fa;
+            --secondary-background-color: #ffffff;
+            --text-color: #3300CC;
+            --font: 'Segoe UI', sans-serif;
+        }
+        
+        /* Override Streamlit elements */
+        .stSelectbox > div > div > div {
+            background-color: #3300CC !important;
+            color: white !important;
+        }
+        
+        .stMultiSelect > div > div > div > div > div {
+            background-color: #3300CC !important;
+            color: white !important;
+        }
+        
+        /* Style multiselect tags */
+        .stMultiSelect [data-baseweb="tag"] {
+            background-color: #3300CC !important;
+            border: none !important;
+            border-radius: 4px !important;
+            color: white !important;
+            font-size: 14px !important;
+        }
+        
+        /* Style the X button in multiselect tags */
+        .stMultiSelect [data-baseweb="tag"] span[role="button"] {
+            color: white !important;
+        }
+        
+        .stMultiSelect [data-baseweb="tag"] span[role="button"]:hover {
+            color: #E83DDC !important;
+        }
+        
+        /* Style the dropdown items */
+        .stMultiSelect [role="listbox"] div {
+            color: #3300CC !important;
+        }
+        
+        /* Style selected items in dropdown */
+        .stMultiSelect [role="listbox"] [aria-selected="true"] {
+            background-color: rgba(26, 20, 100, 0.1) !important;
+        }
+        
+        /* Sidebar text and title colors */
+        .css-1v0mbdj.e115fcil1,
+        .css-163ttbj.e1fqkh3o11 {
+            color: #3300CC !important;
+        }
+        
+        /* Sidebar selected items */
+        .css-1v0mbdj.e115fcil1 [data-baseweb="tag"] {
+            background-color: #3300CC !important;
+            color: white !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Housing severity scale mapping
 housing_severity_scale = {
     "Missing": 0,
     "Place not meant for habitation": 1,
@@ -43,59 +127,36 @@ housing_severity_scale = {
     "Owned by client, no ongoing housing subsidy": 13
 }
 
-
 # Set custom theme function
 def set_custom_theme():
     """Apply custom styling to the dashboard."""
     st.markdown("""
     <style>
-        .main {
-            background-color: #f8f9fa;
-        }
-        
-        h1 {
-            color: #2c3e50;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-        
-        h2 {
-            color: #2c3e50;
+        .main { background-color: #f8f9fa; }
+        h1, h2, h3 { 
+            color: #3300CC;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
-        h3 {
-            color: #34495e;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
+        h1 { border-bottom: 2px solid #39D9CB; padding-bottom: 10px; }
         .stMetric {
             background-color: white;
             border-radius: 5px;
             padding: 15px 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 24px;
-        }
-        
+        .stTabs [data-baseweb="tab-list"] { gap: 24px; }
         .stTabs [data-baseweb="tab"] {
             height: 50px;
             white-space: pre-wrap;
             background-color: white;
             border-radius: 4px 4px 0px 0px;
             gap: 1px;
-            padding-top: 10px;
-            padding-bottom: 10px;
+            padding: 10px 0;
         }
-        
         .stTabs [aria-selected="true"] {
-            background-color: #e6f3ff;
-            border-bottom: 2px solid #3498db;
+            background-color: #e6f7f5;
+            border-bottom: 2px solid #39D9CB;
         }
-        
         .custom-metric-container {
             display: flex;
             flex-direction: column;
@@ -105,65 +166,95 @@ def set_custom_theme():
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             height: 100%;
         }
-        
         .metric-title {
             font-size: 14px;
-            color: #34495e;
+            color: #3300CC;
             margin-bottom: 10px;
         }
-        
         .metric-value {
             font-size: 28px;
             font-weight: bold;
-            color: #3498db;
+            color: #3300CC !important;
         }
-        
         .success-card {
-            background-color: #d5f5e3;
+            background-color: #e6f7f2;
             padding: 15px;
             border-radius: 5px;
-            border-left: 5px solid #2ecc71;
+            border-left: 5px solid #90F7B7;
             margin-bottom: 20px;
         }
-        
         .warning-card {
-            background-color: #fdebd0;
+            background-color: #f3e9f7;
             padding: 15px;
             border-radius: 5px;
-            border-left: 5px solid #f39c12;
+            border-left: 5px solid #9B4DDD;
             margin-bottom: 20px;
         }
-        
         .info-card {
-            background-color: #d6eaf8;
+            background-color: #e6f7f5;
             padding: 15px;
             border-radius: 5px;
-            border-left: 5px solid #3498db;
+            border-left: 5px solid #32BDC2;
             margin-bottom: 20px;
         }
-        
         .failure-card {
-            background-color: #fadbd8;
+            background-color: #f7e6f5;
             padding: 15px;
             border-radius: 5px;
-            border-left: 5px solid #e74c3c;
+            border-left: 5px solid #E83DDC;
             margin-bottom: 20px;
         }
+        .sidebar .sidebar-content { background-color: #f8f9fa; }
         
-        /* Enhance sidebar styling */
-        .sidebar .sidebar-content {
-            background-color: #f8f9fa;
+        /* Style for the multiselect pills in sidebar */
+        .stMultiSelect div div div div div:has(span[data-baseweb="tag"]) span[data-baseweb="tag"] {
+            background-color: #3300CC !important;
+        }
+        
+        .stMultiSelect div div div div div:has(span[data-baseweb="tag"]) span[data-baseweb="tag"] span:first-child {
+            color: white !important;
+        }
+        
+        .stMultiSelect div div div div div:has(span[data-baseweb="tag"]) span[data-baseweb="tag"] span:nth-child(2) svg {
+            fill: white !important;
+        }
+        
+        /* Style for the sidebar header */
+        .sidebar .sidebar-content .block-container h1, 
+        .sidebar .sidebar-content .block-container h2, 
+        .sidebar .sidebar-content .block-container h3, 
+        .sidebar .sidebar-content .block-container h4 {
+            color: #3300CC !important;
+            font-weight: 600;
+        }
+        
+        /* Strengthen multiselect styling */
+        div[data-baseweb="select"] span[data-baseweb="tag"] {
+            background-color: #3300CC !important;
+            border: none !important;
+            color: white !important;
+        }
+        
+        div[data-baseweb="select"] span[data-baseweb="tag"] span {
+            color: white !important;
+        }
+        
+        div[data-baseweb="select"] span[data-baseweb="tag"] button {
+            color: white !important;
+        }
+        
+        /* Override any Streamlit defaults */
+        .stMultiSelect div[role="button"] {
+            background-color: #3300CC !important;
+            color: white !important;
+        }
+        
+        .stMultiSelect [data-baseweb="tag"] {
+            background-color: #3300CC !important;
+            color: white !important;
         }
     </style>
     """, unsafe_allow_html=True)
-
-# Set page configuration
-st.set_page_config(
-    page_title="Homelessness Services Data Dashboard",
-    page_icon="🏠",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # Apply custom theme
 set_custom_theme()
@@ -172,9 +263,9 @@ set_custom_theme()
 def custom_metric(title, value, delta=None, delta_color="normal"):
     """Creates a custom styled metric component."""
     delta_colors = {
-        "positive": "green",
-        "negative": "red",
-        "normal": "gray"
+        "positive": "#90F7B7",
+        "negative": "#E83DDC",
+        "normal": "#3300CC"
     }
     delta_html = ""
     if delta:
@@ -188,32 +279,10 @@ def custom_metric(title, value, delta=None, delta_color="normal"):
     st.markdown(f"""
     <div class="custom-metric-container">
         <div class="metric-title">{title}</div>
-        <div class="metric-value">{value}</div>
+        <div class="metric-value" style="color: #3300CC;">{value}</div>
         {delta_html}
     </div>
     """, unsafe_allow_html=True)
-
-# Function to preprocess text data
-# def preprocess_text(text):
-#     """Clean and preprocess text data."""
-#     if not isinstance(text, str):
-#         return ""
-    
-#     # Convert to lowercase
-#     text = text.lower()
-    
-#     # Remove special characters and numbers
-#     text = re.sub(r'[^a-zA-Z\s]', '', text)
-    
-#     # Remove extra whitespace
-#     text = re.sub(r'\s+', ' ', text).strip()
-    
-#     # Remove stopwords
-#     stop_words = set(stopwords.words('english'))
-#     words = text.split()
-#     words = [word for word in words if word not in stop_words and len(word) > 2]
-    
-#     return ' '.join(words)
 
 # Function to calculate proportions of success for categories
 def calculate_proportions(df, column, status_col='GOAL_STATUS_BINARY'):
@@ -306,51 +375,37 @@ def add_significance_testing(df, column, outcome_col='GOAL_STATUS_BINARY'):
 # Function to create a Sankey diagram for transitions - FIXED to handle missing values appropriately
 def create_sankey_diagram(df, source_col, target_col, value_col=None):
     """Create an improved Sankey diagram for visualizing flows between living situations."""
-    # Filter out missing values in both source and target columns
     valid_df = df.dropna(subset=[source_col, target_col])
-    
-    # Filter out "Missing" values if they exist
     valid_df = valid_df[(valid_df[source_col] != "Missing") & (valid_df[target_col] != "Missing")]
     
     if valid_df.empty:
         return None
     
     if value_col:
-        # If value column is provided, use it for the flow values
         sankey_df = valid_df.groupby([source_col, target_col])[value_col].sum().reset_index()
     else:
-        # Otherwise, count occurrences
         sankey_df = valid_df.groupby([source_col, target_col]).size().reset_index()
         sankey_df.columns = [source_col, target_col, 'value']
     
-    # Create node labels
     all_nodes = pd.unique(sankey_df[[source_col, target_col]].values.ravel('K'))
     all_nodes = [str(node) for node in all_nodes if str(node) != 'nan']
-    
-    # Improve node labels (shorten if necessary)
     shortened_nodes = [node[:30] + '...' if len(node) > 30 else node for node in all_nodes]
     
-    # Map source and target to indices
     source_indices = [list(all_nodes).index(str(source)) for source in sankey_df[source_col]]
     target_indices = [list(all_nodes).index(str(target)) for target in sankey_df[target_col]]
     
-    # Group nodes into categories for coloring based on housing severity scale
     node_colors = []
     for node in all_nodes:
-        # Get severity score, defaulting to middle value if not found
         severity = housing_severity_scale.get(node, 6)
-        
-        # Create a color scale based on severity (red for severe, green for stable)
-        if severity <= 3:  # High severity (emergency)
-            node_colors.append('#e74c3c')  # Red
-        elif severity <= 6:  # Medium severity (temporary)
-            node_colors.append('#f39c12')  # Orange
-        elif severity <= 9:  # Lower severity (subsidized)
-            node_colors.append('#3498db')  # Blue
-        else:  # Low severity (stable)
-            node_colors.append('#2ecc71')  # Green
+        if severity <= 3:
+            node_colors.append('#E83DDC')  # Magenta for crisis
+        elif severity <= 6:
+            node_colors.append('#9B4DDD')  # Mid-purple for temporary
+        elif severity <= 9:
+            node_colors.append('#32BDC2')  # Teal for transitional
+        else:
+            node_colors.append('#90F7B7')  # Mint green for stable
     
-    # Create Sankey diagram with improved styling
     fig = go.Figure(data=[go.Sankey(
         node=dict(
             pad=15,
@@ -363,17 +418,16 @@ def create_sankey_diagram(df, source_col, target_col, value_col=None):
             source=source_indices,
             target=target_indices,
             value=sankey_df['value'],
-            # Add hover template with more information
             hovertemplate='%{source.label} → %{target.label}<br>Count: %{value}<extra></extra>'
         )
     )])
     
-    # Improve layout with better dimensions and arrangement
     fig.update_layout(
         title_text=f"Flow from {source_col} to {target_col}",
-        height=700,  # Increase height
-        font=dict(size=12),  # Consistent font size
-        margin=dict(l=25, r=25, t=50, b=25)
+        height=700,
+        font=dict(size=12, color=color_dark),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
     )
     
     return fig
@@ -381,18 +435,12 @@ def create_sankey_diagram(df, source_col, target_col, value_col=None):
 # NEW FUNCTION: Add housing stability analysis based on severity scale
 def add_housing_stability_analysis(df):
     """Add housing stability score based on the severity scale and analyze outcomes."""
-    # Create a copy to avoid modifying the original dataframe
     analysis_df = df.copy()
     
-    
-    # Map living situations to severity scores
     analysis_df['entry_severity'] = analysis_df['LIVING_SITUATION_AT_ENTRY__C'].map(housing_severity_scale)
     analysis_df['exit_severity'] = analysis_df['LIVING_SITUATION_AT_EXIT__C'].map(housing_severity_scale)
-    
-    # Calculate stability improvement (higher score means more stable housing)
     analysis_df['stability_change'] = analysis_df['exit_severity'] - analysis_df['entry_severity']
     
-    # Create stability categories
     stability_bins = [-float('inf'), -2, -0.001, 0.001, 2, float('inf')]
     stability_labels = ['Significant Decline', 'Slight Decline', 'No Change', 'Slight Improvement', 'Significant Improvement']
     
@@ -402,7 +450,6 @@ def add_housing_stability_analysis(df):
         labels=stability_labels
     )
     
-    # Create initial housing stability categories based on entry severity
     stability_entry_bins = [0, 3, 6, 9, 13]
     stability_entry_labels = ['Crisis', 'Temporary', 'Transitional', 'Stable']
     
@@ -421,12 +468,10 @@ def add_demographics_analysis(df, demographic_cols):
     
     for col in demographic_cols:
         if col in df.columns:
-            # Get counts and proportions
             counts = df[col].value_counts().reset_index()
             counts.columns = ['Category', 'Count']
             counts['Percentage'] = (counts['Count'] / counts['Count'].sum() * 100).round(1)
             
-            # Get success rates by demographic category
             demo_success = calculate_proportions(df, col)
             counts = counts.merge(
                 demo_success['success_rate'].reset_index(),
@@ -451,13 +496,11 @@ def create_radar_chart(df, metrics, group_col='GOAL_STATUS_BINARY', group_values
         metric_values = []
         for metric in metrics:
             if metric in df.columns:
-                # Get mean value for the metric in this group
                 mean_val = group_df[metric].mean()
                 metric_values.append(mean_val)
             else:
                 metric_values.append(0)
         
-        # Close the polygon by repeating the first value
         metric_values.append(metric_values[0])
         metrics_with_first = metrics + [metrics[0]]
         
@@ -465,7 +508,9 @@ def create_radar_chart(df, metrics, group_col='GOAL_STATUS_BINARY', group_values
             r=metric_values,
             theta=metrics_with_first,
             fill='toself',
-            name=group_labels[i]
+            name=group_labels[i],
+            line=dict(color=color_success if value == 1 else color_failure),
+            fillcolor=f"rgba({int(color_success[1:3], 16)}, {int(color_success[3:5], 16)}, {int(color_success[5:7], 16)}, 0.3)" if value == 1 else f"rgba({int(color_failure[1:3], 16)}, {int(color_failure[3:5], 16)}, {int(color_failure[5:7], 16)}, 0.3)"
         ))
     
     fig = go.Figure(data=radar_data)
@@ -474,10 +519,18 @@ def create_radar_chart(df, metrics, group_col='GOAL_STATUS_BINARY', group_values
         polar=dict(
             radialaxis=dict(
                 visible=True,
-                range=[0, 1.2 * max([max(trace['r']) for trace in radar_data])]
+                range=[0, 1.2 * max([max(trace['r']) for trace in radar_data])],
+                linecolor=color_dark,
+                gridcolor=f"rgba({int(color_dark[1:3], 16)}, {int(color_dark[3:5], 16)}, {int(color_dark[5:7], 16)}, 0.2)"
+            ),
+            angularaxis=dict(
+                linecolor=color_dark,
+                gridcolor=f"rgba({int(color_dark[1:3], 16)}, {int(color_dark[3:5], 16)}, {int(color_dark[5:7], 16)}, 0.1)"
             )
         ),
-        showlegend=True
+        showlegend=True,
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=color_dark)
     )
     
     return fig
@@ -520,13 +573,13 @@ def generate_report(df):
         time_stats.index = ['Not Achieved', 'Achieved']
         time_stats.to_excel(writer, sheet_name='Time Analysis')
         
-        # NEW: Add housing stability analysis to report
+        # Add housing stability analysis
         if 'LIVING_SITUATION_AT_ENTRY__C' in df.columns and 'LIVING_SITUATION_AT_EXIT__C' in df.columns:
             stability_df = add_housing_stability_analysis(df)
             stability_analysis = calculate_proportions(stability_df, 'stability_category')
             stability_analysis.to_excel(writer, sheet_name='Housing Stability Analysis')
         
-        # NEW: Add demographics analysis to report if available
+        # Add demographics analysis
         demo_cols = ['AGE_GROUP', 'GENDER', 'RACE', 'ETHNICITY']
         available_demo_cols = [col for col in demo_cols if col in df.columns]
         
@@ -541,8 +594,8 @@ def generate_report(df):
 # Load data
 @st.cache_data
 def load_data():
+    """Load and cache the data."""
     try:
-        # Load the all.csv file from the dat folder
         df = pd.read_csv('/Users/natehu/Desktop/TechBridge/QTM 498R Capstone/data dashboard/dat/all.csv')
         return df
     except Exception as e:
@@ -550,13 +603,12 @@ def load_data():
         st.stop()
 
 # Dashboard title and description
-st.title("Homelessness Services Data Dashboard")
+st.title("HomeBridger Data Dashboard")
 st.markdown("""
 This dashboard analyzes goal achievement data from homelessness services, 
 focusing on understanding the factors that contribute to successful outcomes.
 The analysis compares successful vs. unsuccessful goals to identify patterns and insights.
 """)
-
 
 # Load the data
 try:
@@ -565,13 +617,7 @@ except:
     st.warning("Could not load the data. Please check the file path.")
     st.stop()
 
-# Download NLTK data if needed
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords')
-
-# Filter out EGOs with less than 100 rows (changed from 200 to capture more data)
+# Filter out EGOs with less than 100 rows
 ego_counts = df['RECORD_ORIGIN__C_y'].value_counts()
 valid_egos = ego_counts[ego_counts >= 100].index.tolist()
 
@@ -585,7 +631,7 @@ df = df[df['RECORD_ORIGIN__C_y'].isin(valid_egos)]
 # Sidebar filters
 st.sidebar.header("Filters")
 
-# EGOs filter (RECORD_ORIGIN__C_y)
+# EGOs filter
 all_egos = sorted(df['RECORD_ORIGIN__C_y'].unique())
 st.sidebar.markdown(f"**Available NGOs:** {len(all_egos)} (with 100+ records)")
 
@@ -643,29 +689,17 @@ if filtered_df.empty:
     st.warning("No data available with the current filter settings.")
     st.stop()
 
-# NEW: Enhance filtered data with additional analysis
 # Add housing stability metrics
 stability_df = add_housing_stability_analysis(filtered_df)
 
-# Add dashboard tabs for better navigation - REVISED with new dedicated sections
-# tabs = st.tabs([
-#     "📊 Overview", 
-#     "📈 Success Factors", 
-#     "❌ Failure Analysis",  # NEW tab for unsuccessful analysis
-#     "🏠 Housing Stability",  # NEW tab for housing stability analysis
-#     "👥 Demographics",      # NEW tab for demographics analysis
-#     "⏱️ Time Analysis", 
-#     "🔄 Transitions",
-#     "🔍 Data Explorer"
-# ])
+# Create dashboard tabs
 tabs = st.tabs([
-    "📊 Overview",              # general summary 🧮
+    "📊 Overview",              # general summary
     "🚀 Success Factors",       # upward/rocket for positive drivers
     "⚠️ Failure Analysis",      # warning sign for issues/failures
     "🏘️ Housing Stability",     # cluster of homes for community/housing
     "🧑‍🤝‍🧑 Demographics",       # diverse people icon for demographic spread
     "⏳ Time Analysis",         # hourglass for passage of time
-    # "🔁 Transitions",           # looped arrow for state transitions
     "🗂️ Data Explorer"          # folders for data browsing
 ])
 
@@ -705,9 +739,11 @@ with tabs[0]:
     fig.update_layout(
         yaxis_title='Percentage',
         xaxis_title='Outcome',
-        plot_bgcolor='rgba(0,0,0,0)'
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=color_dark)
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="overview_success_rate")
     
     # Top Reasons for Case Closure
     st.subheader("Top Reasons for Case Closure")
@@ -718,34 +754,16 @@ with tabs[0]:
         text=closure_reasons.values * 100,
         labels={"x": "Reason for Closure", "y": "Proportion (%)"},
         color=closure_reasons.values,
-        color_continuous_scale="RdYlBu_r",
+        color_continuous_scale=custom_rdylgn,
     )
     fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=color_dark)
+    )
+    st.plotly_chart(fig, use_container_width=True, key="overview_closure_reasons")
     
-    # NEW: Add a summary of housing stability improvement
-    st.subheader("Housing Stability Overview")
-    
-    # Calculate average change in housing stability
-    avg_stability_change = stability_df['stability_change'].mean()
-    stability_improved = (stability_df['stability_change'] > 0).mean() * 100
-    
-    stability_cols = st.columns(2)
-    
-    with stability_cols[0]:
-        custom_metric(
-            "Average Housing Stability Change", 
-            f"+ {avg_stability_change:.2f} points",
-            # delta=avg_stability_change,
-            # delta_color="positive" if avg_stability_change > 0 else "negative"
-        )
-        
-    with stability_cols[1]:
-        custom_metric(
-            "Clients with Improved Housing", 
-            f"{stability_improved:.1f}%"
-        )
     
     # Add a download report button
     report_buffer = generate_report(stability_df)
@@ -756,7 +774,7 @@ with tabs[0]:
         mime="application/vnd.ms-excel"
     )
 
-    # Success Factors tab (renamed from Success Analysis)
+# Success Factors tab (renamed from Success Analysis)
 with tabs[1]:
     st.header("Success Factors Analysis")
     
@@ -771,11 +789,7 @@ with tabs[1]:
         
         min_count = st.slider("Min. category size:", 5, 500, 20, key="success_min_count")
         
-        # Add option to normalize by category size
-        # normalize = st.checkbox("Normalize by category size", value=True, key="success_normalize")
-        
-        # # Add statistical testing
-        # show_stats = st.checkbox("Show statistical significance", value=True, key="success_stats")
+
     
     with comparison_cols[1]:
         # Calculate success rates with minimum category size filter
@@ -787,15 +801,7 @@ with tabs[1]:
         if not compare_df.empty:
             success_by_category = calculate_proportions(compare_df, compare_by)
             
-            # Add statistical test if requested
-            # if show_stats:
-            #     p_value, significance = add_significance_testing(compare_df, compare_by)
-            #     st.markdown(f"""
-            #     **Statistical Significance:**
-            #     - p-value: {p_value:.4f}
-            #     - Interpretation: {significance} difference between categories
-            #     """)
-            
+        
             # Create enhanced visualization
             fig = px.bar(
                 success_by_category.reset_index(),
@@ -803,7 +809,7 @@ with tabs[1]:
                 y='success_rate',
                 text='success_rate',
                 color='success_rate',
-                color_continuous_scale='RdYlGn',
+                color_continuous_scale=custom_rdylgn,
                 labels={compare_by: compare_by.replace('__C', ''), 'success_rate': 'Success Rate (%)'},
                 height=500
             )
@@ -828,7 +834,7 @@ with tabs[1]:
                 yaxis_gridcolor='rgba(200,200,200,0.2)'
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"success_rate_{compare_by}")
             
             # Add insights about the comparison
             max_category = success_by_category['success_rate'].idxmax()
@@ -895,7 +901,7 @@ with tabs[1]:
         st.info("Living situation data not available for analysis.")
     
     # Add a section on combined factors
-    st.subheader("Combined Success Factors (Domain + Living Situation at Entry)")
+    st.subheader("Living Situation at Entry Success Rates")
     
     
     if 'DOMAIN__C' in filtered_df.columns and 'LIVING_SITUATION_AT_ENTRY__C' in filtered_df.columns:
@@ -935,7 +941,7 @@ with tabs[1]:
                 orientation='h',
                 text='success_rate',
                 color='success_rate',
-                color_continuous_scale='RdYlGn',
+                color_continuous_scale=custom_rdylgn,
                 labels={
                     'domain_living': 'Domain + Living Situation',
                     'success_rate': 'Success Rate (%)'
@@ -961,7 +967,7 @@ with tabs[1]:
                 plot_bgcolor='rgba(0,0,0,0)',
                 height=500
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"combined_success_factors")
         else:
             st.info("Not enough data to analyze combined success factors with the current filters.")
 
@@ -996,31 +1002,6 @@ with tabs[2]:
     with metric_cols[2]:
         custom_metric("Avg. Time Before Failure", f"{avg_time_failure:.1f} days")
     
-    # # Top reasons for failure
-    # st.subheader("Top Domains with High Failure Rates")
-    
-    # domain_failure = calculate_proportions(filtered_df, 'DOMAIN__C')
-    # domain_failure['failure_rate'] = 100 - domain_failure['success_rate']
-    # domain_failure = domain_failure.sort_values('failure_rate', ascending=False)
-    
-    # # Plot domains with highest failure rates
-    # fig = px.bar(
-    #     domain_failure.head(10).reset_index(),
-    #     x='DOMAIN__C',
-    #     y='failure_rate',
-    #     text='failure_rate',
-    #     color='failure_rate',
-    #     color_continuous_scale='Reds',
-    #     labels={'DOMAIN__C': 'Domain', 'failure_rate': 'Failure Rate (%)'}
-    # )
-    # fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-    # fig.update_layout(
-    #     xaxis_title='Domain',
-    #     yaxis_title='Failure Rate (%)',
-    #     xaxis_tickangle=45,
-    #     plot_bgcolor='rgba(0,0,0,0)'
-    # )
-    # st.plotly_chart(fig, use_container_width=True)
     # Top reasons for failure
     st.subheader("Top Domains with High Failure Rates")
 
@@ -1039,7 +1020,7 @@ with tabs[2]:
         y='failure_rate',
         text='failure_rate',
         color='failure_rate',
-        color_continuous_scale='Reds',
+        color_continuous_scale=custom_reds,
         labels={'DOMAIN__C': 'Domain', 'failure_rate': 'Failure Rate (%)'},
         hover_data=['total']  # Add total to hover information
     )
@@ -1066,9 +1047,9 @@ with tabs[2]:
         ticktext=[f"{domain}<br><span style='font-size:10px'>n={total}</span>" for domain, total in zip(plot_df['DOMAIN__C'], plot_df['total'])]
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="domain_failure_rates")
     # Living situations with highest failure rates
-    st.subheader("Living Situations with Highest Failure Rates (Housing Domain Only)")
+    st.subheader("Living Situations at Entry with Highest Failure Rates (Housing Domain Only)")
     
     livingf_df = filtered_df[filtered_df['DOMAIN__C'] == 'Housing']
     living_failure = calculate_proportions(livingf_df, 'LIVING_SITUATION_AT_ENTRY__C')
@@ -1086,7 +1067,7 @@ with tabs[2]:
         y='failure_rate',
         text='failure_rate',
         color='failure_rate',
-        color_continuous_scale='Reds',
+        color_continuous_scale=custom_reds,
         labels={'LIVING_SITUATION_AT_ENTRY__C': 'Living Situation', 'failure_rate': 'Failure Rate (%)'},
         hover_data=['total']  # Add total to hover information
     )
@@ -1099,7 +1080,7 @@ with tabs[2]:
         height=700
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="living_situation_failure_rates")
     
     # Reason for closure distribution among failed goals
     st.subheader("Primary Reasons for Goal Failure")
@@ -1111,7 +1092,7 @@ with tabs[2]:
             values=failure_reasons.values * 100,
             names=failure_reasons.index,
             title="Reasons for Goal Failure",
-            color_discrete_sequence=px.colors.sequential.Reds_r,
+            color_discrete_sequence=color_gradient_failure,
             hole=0.4
         )
         fig.update_traces(
@@ -1119,426 +1100,480 @@ with tabs[2]:
             textinfo='percent+label',
             insidetextorientation='radial'
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="failure_reasons_pie")
     
-    # Time dimension for failures
-    st.subheader("When Do Goals Typically Fail?")
-    
-    # Create time bins for failure analysis
-    failure_df['time_bin'] = pd.cut(
-        failure_df['TIME_TO_COMPLETE'],
-        bins=[0, 30, 60, 90, 180, 365, float('inf')],
-        labels=['<30 days', '30-60 days', '60-90 days', '90-180 days', '6-12 months', '>12 months']
-    )
-    
-    # Count failures by time bin
-    time_failure_counts = failure_df['time_bin'].value_counts().sort_index()
-    
-    # Plot time distribution of failures
-    fig = px.bar(
-        x=time_failure_counts.index,
-        y=time_failure_counts.values,
-        text=time_failure_counts.values,
-        labels={'x': 'Time to Failure', 'y': 'Number of Failed Goals'},
-        color=time_failure_counts.values,
-        color_continuous_scale='Reds'
-    )
-    fig.update_traces(textposition='outside')
-    fig.update_layout(
-        xaxis_title='Time Period',
-        yaxis_title='Number of Failed Goals',
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    
-    # # Recommendations based on failure analysis
-    # st.subheader("Recommendations to Reduce Failures")
-    
-    # st.markdown("""
-    # Based on the failure analysis, consider the following interventions:
-    
-    # 1. **Early Intervention**: Provide additional support during the first 30-60 days, when many goals fail
-    # 2. **Targeted Support**: Focus additional resources on domains with high failure rates
-    # 3. **Risk Assessment**: Develop a risk scoring system based on domain and living situation combinations
-    # 4. **Follow-up Protocol**: Implement structured follow-up for clients in high-risk categories
-    # """)
+    # Monthly success rate heatmap
+    if 'DATE_OPENED__C' in filtered_df.columns:
+        st.subheader("Success Rate by Month")
+        
+        # Convert to datetime and extract month and year
+        filtered_df['DATE_OPENED__C'] = pd.to_datetime(filtered_df['DATE_OPENED__C'], errors='coerce')
+        
+        # Only proceed if we have valid date data
+        if not filtered_df['DATE_OPENED__C'].isna().all():
+            filtered_df['month'] = filtered_df['DATE_OPENED__C'].dt.month
+            filtered_df['year'] = filtered_df['DATE_OPENED__C'].dt.year
+            
+            # Group by month and year
+            monthly_data = filtered_df.groupby(['year', 'month'])['GOAL_STATUS_BINARY'].agg(
+                success_rate=lambda x: x.mean() * 100,
+                count=lambda x: x.count()
+            ).reset_index()
+            
+            # Only include months with sufficient data
+            monthly_data = monthly_data[monthly_data['count'] >= 10]
+            
+            # Create pivot table for heatmap
+            heatmap_data = monthly_data.pivot(index='month', columns='year', values='success_rate')
+            
+            # Create heatmap
+            fig = px.imshow(
+                heatmap_data,
+                labels=dict(x="Year", y="Month", color="Success Rate (%)"),
+                x=heatmap_data.columns,
+                y=[calendar.month_abbr[i] for i in heatmap_data.index],
+                color_continuous_scale=custom_rdylgn,
+                text_auto=".1f"
+            )
+            
+            fig.update_layout(
+                xaxis_title="Year",
+                yaxis_title="Month",
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True, key="time_monthly_success_heatmap")
 
-# NEW: Housing Stability tab
+
+# Housing Stability tab
 with tabs[3]:
     st.header("Housing Stability Analysis")
-    
-    st.markdown("""
-    <div class="info-card">
-    <h4>Housing Stability Framework</h4>
-    <p>This analysis uses a severity scale (1-13) to measure housing stability, where lower numbers indicate
-    less stable housing situations and higher numbers represent more stable, permanent housing.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Display the housing severity scale
-    st.subheader("Housing Stability Scale")
-    
-    # Create a dataframe from the housing severity scale
-    scale_df = pd.DataFrame({
-        'Living Situation': list(housing_severity_scale.keys()),
-        'Stability Score': list(housing_severity_scale.values())
-    })
-    scale_df = scale_df.sort_values('Stability Score')
-    
-    # Create a color scale based on stability
-    scale_df['Color'] = scale_df['Stability Score'].apply(
-        lambda x: 'rgba(231, 76, 60, 0.8)' if x <= 3 else  # Red for crisis
-                 'rgba(241, 196, 15, 0.8)' if x <= 6 else  # Yellow for temporary
-                 'rgba(52, 152, 219, 0.8)' if x <= 9 else  # Blue for transitional
-                 'rgba(46, 204, 113, 0.8)'                 # Green for stable
-    )
-    
-    fig = px.bar(
-        scale_df,
-        x='Stability Score',
-        y='Living Situation',
-        orientation='h',
-        color='Stability Score',
-        color_continuous_scale='RdYlGn',
-        text='Stability Score'
-    )
-    fig.update_traces(textposition='inside')
-    fig.update_layout(
-        height=600,
-        yaxis_title='',
-        xaxis_title='Housing Stability Score (Higher = More Stable)',
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Housing stability at entry vs. success rate
-    st.subheader("Housing Stability at Entry (With Goal for Housing) vs. Goal Success")
-    
-    # Calculate success rates by entry stability category
-    entry_stability_success = calculate_proportions(stability_df[stability_df['DOMAIN__C'] == 'Housing'], 'entry_stability')
-    
-    fig = px.bar(
-        entry_stability_success.reset_index(),
-        x='entry_stability',
-        y='success_rate',
-        text='success_rate',
-        color='success_rate',
-        color_continuous_scale='RdYlGn',
-        labels={'entry_stability': 'Housing Stability at Entry', 'success_rate': 'Success Rate (%)'}
-    )
-    fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-    fig.update_layout(
-        xaxis_title='Housing Stability Category',
-        yaxis_title='Success Rate (%)',
-        plot_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # # Housing stability change analysis
-    # st.subheader("Housing Stability Change Analysis")
-    
-    # # Filter for cases with both entry and exit data
-    # stability_change_df = stability_df.dropna(subset=['entry_severity', 'exit_severity'])
-    
-    # # Calculate overall stability change
-    # avg_change = stability_change_df['stability_change'].mean()
-    # positive_change = (stability_change_df['stability_change'] > 0).mean() * 100
-    
-    # change_cols = st.columns(2)
-    
-    # with change_cols[0]:
-    #     custom_metric(
-    #         "Average Stability Change", 
-    #         f"{avg_change:.2f} points",
-    #         delta=avg_change,
-    #         delta_color="positive" if avg_change > 0 else "negative"
-    #     )
-    
-    # with change_cols[1]:
-    #     custom_metric(
-    #         "Clients with Improved Housing", 
-    #         f"{positive_change:.1f}%"
-    #     )
-    
-    # Stability change by category
-    # st.subheader("Housing Stability Change by Category")
-    stability_change_df = stability_df.dropna(subset=['entry_severity', 'exit_severity'])
-    
-    # # Calculate distribution of stability changes
-    stability_category_counts = stability_change_df['stability_category'].value_counts(normalize=True) * 100
-    
-    # fig = px.pie(
-    #     values=stability_category_counts.values,
-    #     names=stability_category_counts.index,
-    #     title="Distribution of Housing Stability Changes",
-    #     color_discrete_sequence=px.colors.diverging.RdYlGn,
-    #     hole=0.4
-    # )
-    # fig.update_traces(
-    #     textposition='inside',
-    #     textinfo='percent+label',
-    #     insidetextorientation='radial'
-    # )
-    # st.plotly_chart(fig, use_container_width=True)
-    
-    # # Entry and exit severity comparison
-    # st.subheader("Entry vs. Exit Housing Stability")
-    
-    # # Create violin plot to compare distributions
-    # fig = go.Figure()
-    
-    # fig.add_trace(go.Violin(
-    #     x=['Entry'] * len(stability_change_df),
-    #     y=stability_change_df['entry_severity'],
-    #     box_visible=True,
-    #     line_color='#e74c3c',
-    #     meanline_visible=True,
-    #     name='Entry'
-    # ))
-    
-    # fig.add_trace(go.Violin(
-    #     x=['Exit'] * len(stability_change_df),
-    #     y=stability_change_df['exit_severity'],
-    #     box_visible=True,
-    #     line_color='#2ecc71',
-    #     meanline_visible=True,
-    #     name='Exit'
-    # ))
-    
-    # fig.update_layout(
-    #     xaxis_title='',
-    #     yaxis_title='Housing Stability Score',
-    #     violinmode='group',
-    #     plot_bgcolor='rgba(0,0,0,0)'
-    # )
-    
-    # st.plotly_chart(fig, use_container_width=True)
-    
-    # # Housing stability change by domain
-    # # st.subheader("Housing Stability Change by Domain")
-    
-    # if 'DOMAIN__C' in stability_change_df.columns:
-    #     domain_stability = stability_change_df.groupby('DOMAIN__C')['stability_change'].mean().sort_values(ascending=False)
-        
-    #     fig = px.bar(
-    #         domain_stability.reset_index(),
-    #         x='DOMAIN__C',
-    #         y='stability_change',
-    #         text=domain_stability.values.round(2),
-    #         color='stability_change',
-    #         color_continuous_scale='RdYlGn',
-    #         labels={'DOMAIN__C': 'Domain', 'stability_change': 'Avg. Stability Change'}
-    #     )
-    #     fig.update_traces(textposition='outside')
-    #     fig.update_layout(
-    #         xaxis_title='Domain',
-    #         yaxis_title='Average Stability Change',
-    #         xaxis_tickangle=45,
-    #         plot_bgcolor='rgba(0,0,0,0)',
-    #         height=600
-    #     )
-    #     st.plotly_chart(fig, use_container_width=True)
-    
-    # Housing pathways visualization
-    st.subheader("Common Housing Stability Pathways")
-    
-    # Create a simplified version for visualization
-    stability_change_df['entry_category'] = pd.cut(
-        stability_change_df['entry_severity'],
-        bins=[0, 3, 6, 9, 13],
-        labels=['Crisis', 'Temporary', 'Transitional', 'Stable']
-    )
-    
-    stability_change_df['exit_category'] = pd.cut(
-        stability_change_df['exit_severity'],
-        bins=[0, 3, 6, 9, 13],
-        labels=['Crisis', 'Temporary', 'Transitional', 'Stable']
-    )
-    
-    # Create Sankey diagram for stability category flows
-    fig = create_sankey_diagram(
-        stability_change_df, 
-        'entry_category', 
-        'exit_category'
-    )
-    
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Not enough data to visualize housing stability pathways.")
 
-# NEW: Demographics tab
-with tabs[4]:
-    st.header("Demographics Analysis")
+    house_df = filtered_df.copy()
     
-    # Identify demographic columns
-    demo_cols = [col for col in ['AGE_GROUP', 'GENDER', 'RACE', 'ETHNICITY','COMBINED_RACE'] if col in filtered_df.columns]
+    original_count = len(house_df)
     
-    if not demo_cols:
-        st.warning("No demographic data columns found in the dataset.")
-    else:
+    # both entry and exit living situation are not  "missing"
+    house_df = house_df[house_df['LIVING_SITUATION_AT_ENTRY__C'] != "Missing"]
+    house_df = house_df[house_df['LIVING_SITUATION_AT_EXIT__C'] != "Missing"]
+    # Add housing stability scores
+    stability_df = add_housing_stability_analysis(house_df)
+    
+    # Key Metrics Section
+    st.subheader("Key Housing Stability Metrics")
+    
+    # Calculate metrics for meaningful indicators
+    avg_stability_change = stability_df['stability_change'].mean()
+    stability_improved_pct = (stability_df['stability_change'] > 0).mean() * 100
+    stability_unchanged_pct = (stability_df['stability_change'] == 0).mean() * 100
+    stability_declined_pct = (stability_df['stability_change'] < 0).mean() * 100
+    
+    # Calculate data completeness - corrected calculation 
+    entry_missing_count = (stability_df['LIVING_SITUATION_AT_ENTRY__C'] == "Missing").sum()
+    exit_missing_count = (stability_df['LIVING_SITUATION_AT_EXIT__C'] == "Missing").sum()
+    total_records = len(stability_df)
+    
+    entry_missing_pct = (entry_missing_count / total_records) * 100 if total_records > 0 else 0
+    exit_missing_pct = (exit_missing_count / total_records) * 100 if total_records > 0 else 0
+    overall_completeness = (1 - (original_count - total_records) / original_count) * 100
+    
+    # Metric rows
+    metric_cols1 = st.columns(3)
+    with metric_cols1[0]:
+        custom_metric("Average Stability Change", f"+ {avg_stability_change:.2f} points")
+    with metric_cols1[1]:
+        custom_metric("Clients with Improved Housing", f"{stability_improved_pct:.1f}%")
+    with metric_cols1[2]:
+        custom_metric("Data Completeness", f"{overall_completeness:.1f}%")
+    
+    # Cross-Organization Comparison
+    st.subheader("Cross-Organization Housing Stability Comparison")
+    
+    # Calculate average stability change by organization
+    org_stability = stability_df.groupby('RECORD_ORIGIN__C_y').agg(
+        avg_change=('stability_change', 'mean'),
+        improved_pct=('stability_change', lambda x: (x > 0).mean() * 100),
+        count=('RECORD_ORIGIN__C_y', 'count')
+    ).reset_index()
+    
+    # Filter for organizations with sufficient data
+    org_stability = org_stability[org_stability['count'] >= 20]
+    
+    if not org_stability.empty:
+        # Create scatter plot comparing stability metrics
+        fig = px.scatter(
+            org_stability,
+            x='avg_change',
+            y='improved_pct',
+            size='count',
+            color='avg_change',
+            text='RECORD_ORIGIN__C_y',
+            color_continuous_scale=custom_rdylgn,
+            labels={
+                'avg_change': 'Average Stability Change',
+                'improved_pct': 'Clients with Improved Stability (%)',
+                'count': 'Number of Records'
+            },
+            height=500
+        )
+        fig.update_traces(
+            textposition='top center',
+            marker=dict(line=dict(width=1, color='DarkSlateGrey')),
+            marker_sizemin=10,
+            marker_sizeref=2.*max(org_stability['count'])/(50.**2)
+        )
+        fig.update_layout(
+            title="Organization Performance Comparison",
+            xaxis_title="Average Stability Change",
+            yaxis_title="Clients with Improved Stability (%)",
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        # Add reference lines
+        fig.add_hline(
+            y=org_stability['improved_pct'].mean(), 
+            line_dash="dash", 
+            line_color="grey", 
+            annotation_text="Avg Improvement %"
+        )
+        fig.add_vline(
+            x=org_stability['avg_change'].mean(), 
+            line_dash="dash", 
+            line_color="grey", 
+            annotation_text="Avg Change"
+        )
+        
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True, key="org_stability_comparison")
+        
+        # Add insights on cross-organization comparison
         st.markdown("""
         <div class="info-card">
-        <h4>Demographics Overview</h4>
-        <p>This section analyzes how various demographic factors correlate with goal achievement
-        and housing stability outcomes.</p>
+        <h5>Cross-Organization Insights</h5>
+        <p>Organizations in the top-right quadrant are outperforming peers in improving client housing stability.
+        Those in the bottom-left quadrant may benefit from shared best practices through the data platform.</p>
+        <p>Size of bubbles indicates volume of clients served - larger organizations have greater impact potential.</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Create demographics dictionary
-        demographics = add_demographics_analysis(filtered_df, demo_cols)
-        
-        # Demographics overview
-        st.subheader("Client Demographics Overview")
-        
-        # Create columns based on number of available demographics
-        num_cols = min(len(demo_cols), 2)  # Maximum 2 columns
-        demo_overview_cols = st.columns(num_cols)
-        
-        # Distribute pie charts across columns
-        for i, col in enumerate(demo_cols):
-            with demo_overview_cols[i % num_cols]:
-                if col in demographics:
-                    # Create pie chart for demographic distribution
-                    fig = px.pie(
-                        demographics[col],
-                        values='Percentage',
-                        names='Category',
-                        title=f"{col.replace('_', ' ').title()} Distribution",
-                        color_discrete_sequence=px.colors.qualitative.Pastel
-                    )
-                    fig.update_traces(
-                        textposition='inside',
-                        textinfo='percent+label',
-                        insidetextorientation='radial'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-        
-        # Success rates by demographics
-        st.subheader("Success Rates by Demographics (All Objectives)")
-        
-        # Create tabs for each demographic category
-        if demo_cols:
-            demo_tabs = st.tabs([col.replace('_', ' ').title() for col in demo_cols])
+    else:
+        st.info("Insufficient data to compare organizations.")
+    
+    # Add Housing Severity Scale visualization at the end
+    st.subheader("Housing Stability Severity Scale")
+    
+    # Create a sorted list of the housing severity scale
+    severity_items = sorted(housing_severity_scale.items(), key=lambda x: x[1])
+    
+    # Create a dataframe for the scale visualization
+    scale_df = pd.DataFrame({
+        'Housing Situation': [item[0] for item in severity_items],
+        'Severity Score': [item[1] for item in severity_items],
+        'Category': pd.cut(
+            [item[1] for item in severity_items],
+            bins=[0, 3, 6, 9, 13],
+            labels=['Crisis', 'Temporary', 'Transitional', 'Stable']
+        )
+    })
+    
+    # Create a color map from purple to pink gradient
+    purple_pink_scale = [
+        [0, "#6A22CF"],     # Deep purple
+        [0.33, "#8B3DCE"],  # Medium purple
+        [0.66, "#C73DDD"],  # Light purple
+        [1, "#E83DDC"]      # Pink
+    ]
+    
+    # Create the visualization
+    fig = px.bar(
+        scale_df,
+        x='Severity Score',
+        y='Housing Situation',
+        color='Severity Score',
+        color_continuous_scale=purple_pink_scale,
+        text='Severity Score',
+        labels={
+            'Severity Score': 'Housing Stability Score (higher is better)',
+            'Housing Situation': 'Living Situation'
+        },
+        height=700,
+        orientation='h'
+    )
+    
+    # Add category bands to visually distinguish groups
+    category_colors = {
+        'Crisis': 'rgba(232, 61, 220, 0.15)',      # Pink with transparency
+        'Temporary': 'rgba(199, 61, 221, 0.15)',   # Light purple with transparency  
+        'Transitional': 'rgba(139, 61, 206, 0.15)', # Medium purple with transparency
+        'Stable': 'rgba(106, 34, 207, 0.15)'       # Deep purple with transparency
+    }
+    
+    # Add category bands
+    for category in ['Crisis', 'Temporary', 'Transitional', 'Stable']:
+        category_items = scale_df[scale_df['Category'] == category]
+        if not category_items.empty:
+            min_y_position = category_items.index.min() - 0.5
+            max_y_position = category_items.index.max() + 0.5
             
-            for i, col in enumerate(demo_cols):
-                with demo_tabs[i]:
-                    if col in demographics:
-                        # Sort by success rate
-                        success_data = demographics[col].sort_values('success_rate', ascending=False)
-                        
-                        # Create bar chart of success rates
-                        fig = px.bar(
-                            success_data,
-                            x='Category',
-                            y='success_rate',
-                            text='success_rate',
-                            color='success_rate',
-                            color_continuous_scale='RdYlGn',
-                            labels={'success_rate': 'Success Rate (%)', 'Category': col.replace('_', ' ').title()},
-                            
-                        )
-                        fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-                        fig.update_layout(
-                            xaxis_title=col.replace('_', ' ').title(),
-                            yaxis_title='Success Rate (%)',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            height=700
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                      
-        
-        # Housing stability by demographics
-        st.subheader("Housing Stability by Demographics")
-        
-        # Create columns for each demographic category (up to 2)
-        num_cols = min(len(demo_cols), 2)
-        stability_cols = st.columns(num_cols)
-        
-        for i, col in enumerate(demo_cols):
-            with stability_cols[i % num_cols]:
-                if col in stability_df.columns:
-                    # Calculate average stability change by demographic category
-                    stability_df_housing = stability_df.copy()
-                    stability_df_housing = stability_df_housing[stability_df_housing['DOMAIN__C'] == 'Housing']
-                    stability_by_demo = stability_df_housing.groupby(col)['stability_change'].mean().sort_values(ascending=False)
-                    
-                    
-                    if not stability_by_demo.empty:
-                        fig = px.bar(
-                            stability_by_demo.reset_index(),
-                            x=col,
-                            y='stability_change',
-                            text=stability_by_demo.values.round(2),
-                            color='stability_change',
-                            color_continuous_scale='RdYlGn',
-                            labels={col: col.replace('_', ' ').title(), 'stability_change': 'Avg. Stability Change'}
-                        )
-                        fig.update_traces(textposition='outside')
-                        fig.update_layout(
-                            title=f"Housing Stability Change by {col.replace('_', ' ').title()}",
-                            xaxis_title=col.replace('_', ' ').title(),
-                            yaxis_title='Average Stability Change',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            height=700
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-        
-        # Demographic intersections
-        if len(demo_cols) >= 2:
-            st.subheader("Demographic Intersections")
+            fig.add_shape(
+                type="rect",
+                x0=0,
+                x1=13,
+                y0=min_y_position,
+                y1=max_y_position,
+                fillcolor=category_colors[category],
+                line=dict(width=0),
+                layer="below"
+            )
             
-            # Select two demographics for intersection analysis
-            intersection_cols = st.columns(2)
+            # Add category label
+            fig.add_annotation(
+                x=12,
+                y=(min_y_position + max_y_position) / 2,
+                text=category,
+                showarrow=False,
+                font=dict(size=14, color="#3300CC")
+            )
+    
+    # Update layout
+    fig.update_layout(
+        title="Housing Stability Severity Scale (Higher is More Stable)",
+        xaxis=dict(
+            title="Stability Score",
+            range=[0, 13],
+            dtick=1
+        ),
+        yaxis=dict(
+            title=""
+        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        showlegend=False
+    )
+    
+    # Display the chart
+    st.plotly_chart(fig, use_container_width=True, key="housing_severity_scale")
+    
+
+with tabs[4]: # Demographics tab - UNCOMMENTED
+    st.header("Demographics Analysis")
+
+    race_col = None
+    if 'COMBINED_RACE' in filtered_df.columns:
+        race_col = 'COMBINED_RACE'
+    elif 'RACE' in filtered_df.columns:
+        race_col = 'RACE'
+
+    if race_col:
+        demo_df = filtered_df[[race_col, 'GOAL_STATUS_BINARY']].copy()
+        demo_df[race_col] = demo_df[race_col].fillna('Missing')
+
+        # --- Race Splitting Logic ---
+        delimiters = r'/|;' # Regex for splitting
+        
+        # Create a series suitable for splitting, handle potential non-string types
+        races_series = demo_df[race_col].astype(str).str.split(delimiters, expand=False)
+        
+        # Explode the list into separate rows, keeping the original index
+        races_exploded = races_series.explode()
+        
+        # Trim whitespace and handle empty results
+        races_exploded = races_exploded.str.strip()
+        races_exploded = races_exploded.replace('', 'Unknown/Missing')
+        
+        # Combine with original index and goal status
+        race_analysis_df = demo_df[['GOAL_STATUS_BINARY']].join(races_exploded.rename('race'))
+        
+        # Remove rows where race is 'Missing' or 'Unknown/Missing' for clearer analysis
+        valid_races_df = race_analysis_df[
+            ~race_analysis_df['race'].isin(['Missing', 'Unknown/Missing', None]) & 
+            (race_analysis_df['race'] != '')
+        ].copy()
+
+        if not valid_races_df.empty:
+            # --- 1. Success Rate by Race ---
+            st.subheader("Success Rate by Race/Ethnicity")
+            st.markdown("Analyzes goal success rates across different racial/ethnic identities, based on self-reported data. Handles multiple selections per client.")
+
+            min_count_race = st.slider(
+                "Minimum sample size for race analysis:", 
+                min_value=1, 
+                max_value=max(10, int(len(valid_races_df)/20)), # Dynamic max
+                value=max(1, min(10, int(len(valid_races_df)/50))), # Dynamic default
+                key="min_count_race",
+                help="Minimum number of client entries needed to include a race category in the success rate analysis."
+            )
+
+            # Calculate success rates
+            race_success_rates = valid_races_df.groupby('race')['GOAL_STATUS_BINARY'].agg(
+                count='size',
+                success_rate=lambda x: x.mean() * 100
+            ).reset_index()
             
-            with intersection_cols[0]:
-                demo1 = st.selectbox("Select first demographic:", demo_cols, key="demo1")
+            # Filter by minimum count
+            race_success_rates_filtered = race_success_rates[race_success_rates['count'] >= min_count_race]
             
-            with intersection_cols[1]:
-                demo2 = st.selectbox("Select second demographic:", [col for col in demo_cols if col != demo1], key="demo2")
+            # Sort for horizontal bar chart (ascending looks better)
+            race_success_rates_filtered = race_success_rates_filtered.sort_values('success_rate', ascending=True)
+
+            if not race_success_rates_filtered.empty:
+                fig_race_success = px.bar(
+                    race_success_rates_filtered,
+                    x='success_rate',
+                    y='race',
+                    orientation='h',
+                    text='success_rate',
+                    color='success_rate',
+                    color_continuous_scale=custom_rdylgn, # Use defined color scale
+                    labels={'race': 'Race/Ethnicity', 'success_rate': 'Success Rate (%)'},
+                    hover_data={'count': True, 'success_rate': ':.1f'}, # Show count on hover
+                    title="Success Rate by Race/Ethnicity"
+                )
+                fig_race_success.update_traces(
+                    texttemplate='%{text:.1f}%',
+                    textposition='outside',
+                    hovertemplate='<b>%{y}</b><br>Success Rate: %{x:.1f}%<br>Sample Size: %{customdata[0]}'
+                )
+                fig_race_success.update_layout(
+                    yaxis_title='', # Remove y-axis title for cleaner look
+                    xaxis_title='Success Rate (%)',
+                    plot_bgcolor='rgba(0,0,0,0)', # Transparent background
+                    height=max(400, len(race_success_rates_filtered) * 30) # Adjust height dynamically
+                )
+                st.plotly_chart(fig_race_success, use_container_width=True)
+            else:
+                st.info(f"No race/ethnicity categories met the minimum sample size of {min_count_race}.")
+
+            # --- 2. Overall Racial Composition ---
+            st.subheader("Overall Racial Composition")
+            st.markdown("Shows the distribution of racial/ethnic identities across all analyzed client entries.")
             
-            if demo1 != demo2 and demo1 in filtered_df.columns and demo2 in filtered_df.columns:
-                # Create intersection column
-                filtered_df['intersection'] = filtered_df[demo1] + " + " + filtered_df[demo2]
-                
-                # Calculate success rates for intersections
-                intersection_props = calculate_proportions(filtered_df, 'intersection')
-                
-                # Filter for intersections with enough data
-                intersection_props = intersection_props[intersection_props['total'] >= 10].sort_values('success_rate', ascending=False)
-                
-                if not intersection_props.empty:
-                    # Show top and bottom intersections
-                    top_n = min(5, len(intersection_props))
-                    
-                    outcome_cols = st.columns(2)
-                    
-                    with outcome_cols[0]:
-                        st.markdown(f"#### Highest Success: {demo1} × {demo2}")
-                        
-                        for idx, (intersect, row) in enumerate(intersection_props.head(top_n).iterrows()):
-                            st.markdown(f"""
-                            <div class="success-card">
-                                <h5>{intersect}</h5>
-                                <p>Success Rate: {row['success_rate']:.1f}%<br>
-                                Sample Size: {row['total']} clients</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    
-                    with outcome_cols[1]:
-                        st.markdown(f"#### Lowest Success: {demo1} × {demo2}")
-                        
-                        for idx, (intersect, row) in enumerate(intersection_props.tail(top_n).iterrows()):
-                            st.markdown(f"""
-                            <div class="failure-card">
-                                <h5>{intersect}</h5>
-                                <p>Success Rate: {row['success_rate']:.1f}%<br>
-                                Sample Size: {row['total']} clients</p>
-                            </div>
-                            """, unsafe_allow_html=True)
+            # Calculate distribution based on the exploded (split) data
+            race_distribution = valid_races_df['race'].value_counts(normalize=True).reset_index()
+            race_distribution.columns = ['race', 'percentage']
+            race_distribution['percentage'] *= 100
+
+            # Threshold slider for grouping small categories
+            threshold_comp = st.slider(
+                "Threshold for grouping small races (%):",
+                min_value=0.1, max_value=5.0, value=0.5, step=0.1,
+                key="threshold_comp",
+                help="Races representing less than this percentage will be grouped into 'OTHERS'."
+            )
+            
+            # Apply threshold grouping
+            small_races = race_distribution[race_distribution["percentage"] < threshold_comp]
+            others_percentage = small_races["percentage"].sum()
+            filtered_distribution = race_distribution[race_distribution["percentage"] >= threshold_comp]
+
+            if others_percentage > 0:
+                # Ensure 'OTHERS' isn't already present before adding
+                if not filtered_distribution['race'].str.contains('OTHERS').any():
+                    new_row = pd.DataFrame({"race": ["OTHERS"], "percentage": [others_percentage]})
+                    filtered_distribution = pd.concat([filtered_distribution, new_row], ignore_index=True)
                 else:
-                    st.info(f"Not enough data for meaningful intersection analysis of {demo1} and {demo2}.")
+                    # Add to existing 'OTHERS' if it exists (edge case)
+                    filtered_distribution.loc[filtered_distribution['race'] == 'OTHERS', 'percentage'] += others_percentage
+
+            if not filtered_distribution.empty:
+                fig_race_comp = px.pie(
+                    filtered_distribution,
+                    values='percentage',
+                    names='race',
+                    title='Overall Racial Composition of Clients',
+                    color_discrete_sequence=px.colors.sequential.Plotly3, # Use a sequential magenta scale
+                    hole=0.3 # Make it a donut chart
+                )
+                fig_race_comp.update_traces(
+                    textposition='outside', # Place labels outside
+                    textinfo='percent+label',
+                    # insidetextorientation='radial' # Less effective with outside labels
+                )
+                fig_race_comp.update_layout(
+                    margin=dict(t=50, b=100, l=20, r=20), # Adjust margins
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    showlegend=False # Labels on slices are usually sufficient
+                )
+                st.plotly_chart(fig_race_comp, use_container_width=True)
+            else:
+                st.info("Could not generate the racial composition chart.")
+            
+            # --- 3. NGO Client Demographics ---
+            st.subheader("NGO Client Demographics Breakdown")
+            st.markdown("Shows the racial/ethnic composition of clients served by each selected NGO.")
+            
+            # Join valid races back to the original filtered_df to get NGO info
+            # Need to ensure index alignment
+            ngo_race_df = filtered_df.join(valid_races_df.set_index(valid_races_df.index)[['race']])
+            ngo_race_df = ngo_race_df.dropna(subset=['race', 'RECORD_ORIGIN__C_y']) # Drop rows missing essential info
+            
+            # Slider for minimum clients per NGO for this analysis
+            min_clients_ngo = st.slider(
+                "Minimum total clients per NGO:", 
+                min_value=10, 
+                max_value=max(50, int(len(filtered_df) / len(filtered_df['RECORD_ORIGIN__C_y'].unique()) * 2)), # Dynamic max
+                value=max(10, min(20, int(len(filtered_df) / len(filtered_df['RECORD_ORIGIN__C_y'].unique())))), # Dynamic default
+                key="min_clients_ngo",
+                help="Minimum number of total client entries required to include an NGO in this breakdown."
+            )
+            
+            # Calculate client counts per NGO
+            ngo_counts = ngo_race_df['RECORD_ORIGIN__C_y'].value_counts()
+            valid_ngos = ngo_counts[ngo_counts >= min_clients_ngo].index
+            
+            # Filter the dataframe for valid NGOs
+            ngo_race_filtered_df = ngo_race_df[ngo_race_df['RECORD_ORIGIN__C_y'].isin(valid_ngos)]
+
+            if not ngo_race_filtered_df.empty:
+                # Calculate race distribution per NGO
+                ngo_race_dist = ngo_race_filtered_df.groupby(['RECORD_ORIGIN__C_y', 'race']).size().unstack(fill_value=0)
+                ngo_race_dist_pct = ngo_race_dist.apply(lambda x: x / x.sum() * 100, axis=1)
+                
+                # Prepare data for plotting
+                plot_data_ngo = ngo_race_dist_pct.reset_index().melt(
+                    id_vars='RECORD_ORIGIN__C_y', 
+                    var_name='race', 
+                    value_name='percentage'
+                )
+                
+                # Add total count for hover info
+                plot_data_ngo = plot_data_ngo.merge(ngo_counts.rename('total_clients'), left_on='RECORD_ORIGIN__C_y', right_index=True)
+
+                # Sort NGOs by total clients for better visualization (optional)
+                plot_data_ngo = plot_data_ngo.sort_values(by='total_clients', ascending=False)
+                
+                # Create stacked bar chart
+                fig_ngo_dist = px.bar(
+                    plot_data_ngo,
+                    x='RECORD_ORIGIN__C_y',
+                    y='percentage',
+                    color='race',
+                    title='Racial/Ethnic Composition by NGO',
+                    labels={'RECORD_ORIGIN__C_y': 'NGO (Organization)', 'percentage': 'Percentage of Clients (%)', 'race': 'Race/Ethnicity'},
+                    color_discrete_sequence=px.colors.qualitative.Pastel, # Use a distinct color palette
+                    hover_data={'total_clients': True, 'percentage': ':.1f'}
+                )
+                
+                fig_ngo_dist.update_layout(
+                    xaxis_tickangle=45,
+                    yaxis_title='Percentage of Clients (%)',
+                    xaxis_title='NGO (Organization)',
+                    barmode='stack',
+                    legend_title='Race/Ethnicity',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    height=600
+                )
+                
+                fig_ngo_dist.update_traces(
+                     hovertemplate='<b>NGO:</b> %{x}<br><b>Race:</b> %{fullData.name}<br><b>Percentage:</b> %{y:.1f}%<br><b>Total Clients for NGO:</b> %{customdata[0]}<extra></extra>'
+                )
+                
+                st.plotly_chart(fig_ngo_dist, use_container_width=True)
+            else:
+                st.info(f"No NGOs met the minimum requirement of {min_clients_ngo} clients for this breakdown.")
+
+        else:
+            st.warning("No valid race/ethnicity data found after processing and cleaning.")
+    else:
+        st.warning("No 'COMBINED_RACE' or 'RACE' column found in the data. Cannot perform race-based analysis.")
 
 # Time Analysis tab
 with tabs[5]:
@@ -1574,7 +1609,9 @@ with tabs[5]:
                 xanchor="right",
                 x=1
             ),
-            plot_bgcolor='rgba(0,0,0,0)'
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=color_dark)
         )
         
         # Update x-axis
@@ -1589,7 +1626,7 @@ with tabs[5]:
             legendgroup='Achieved' if t.name == '1' else 'Not Achieved'
         ))
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="time_distribution_histogram")
     
     with time_cols[1]:
         st.subheader("Time Statistics")
@@ -1611,28 +1648,6 @@ with tabs[5]:
     
     # Boxplot comparison
     st.subheader("Time Distribution Comparison")
-    
-    # col1, col2 = st.columns(2)
-    # col2 = st.columns(1)
-    # with col1:
-    #     fig = px.box(
-    #         filtered_df, 
-    #         x='GOAL_STATUS_BINARY', 
-    #         y='TIME_TO_COMPLETE',
-    #         color='GOAL_STATUS_BINARY',
-    #         labels={'TIME_TO_COMPLETE': 'Time (days)'},
-    #         category_orders={"GOAL_STATUS_BINARY": [1, 0]},
-    #         color_discrete_map={1: color_success, 0: color_failure}
-    #     )
-    #     fig.update_layout(
-    #         xaxis=dict(
-    #             tickmode='array',
-    #             tickvals=[0, 1],
-    #             ticktext=['Failed', 'Successful']
-    #         ),
-    #         plot_bgcolor='rgba(0,0,0,0)'
-    #     )
-    #     st.plotly_chart(fig, use_container_width=True)
     
     
     st.subheader("Average Time by Domain")
@@ -1659,10 +1674,40 @@ with tabs[5]:
             xaxis_tickangle=45,
             plot_bgcolor='rgba(0,0,0,0)'
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="avg_time_by_domain")
     else:
         st.info("Not enough data to analyze time by domain.")
     
+    # When do goals typically fail?
+    st.subheader("When Do Goals Typically Fail?")
+    
+    # Create time bins for failure analysis
+    failure_df = filtered_df[filtered_df['GOAL_STATUS_BINARY'] == 0]
+    failure_df['time_bin'] = pd.cut(
+        failure_df['TIME_TO_COMPLETE'],
+        bins=[0, 30, 60, 90, 180, 365, float('inf')],
+        labels=['<30 days', '30-60 days', '60-90 days', '90-180 days', '6-12 months', '>12 months']
+    )
+    
+    # Count failures by time bin
+    time_failure_counts = failure_df['time_bin'].value_counts().sort_index()
+    
+    # Plot time distribution of failures
+    fig = px.bar(
+        x=time_failure_counts.index,
+        y=time_failure_counts.values,
+        text=time_failure_counts.values,
+        labels={'x': 'Time to Failure', 'y': 'Number of Failed Goals'},
+        color=time_failure_counts.values,
+        color_continuous_scale=custom_reds
+    )
+    fig.update_traces(textposition='outside')
+    fig.update_layout(
+        xaxis_title='Time Period',
+        yaxis_title='Number of Failed Goals',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, use_container_width=True, key="time_failure_distribution")
     
     
     # Success rate by duration
@@ -1687,7 +1732,7 @@ with tabs[5]:
         y='success_rate',
         text='success_rate',
         color='success_rate',
-        color_continuous_scale='RdYlGn',
+        color_continuous_scale=custom_rdylgn,
         hover_data=['count']
     )
     
@@ -1698,7 +1743,7 @@ with tabs[5]:
         plot_bgcolor='rgba(0,0,0,0)'
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="time_tab_success_rate_by_duration")
     
     # Monthly success rate heatmap
     if 'DATE_OPENED__C' in filtered_df.columns:
@@ -1729,8 +1774,8 @@ with tabs[5]:
                 heatmap_data,
                 labels=dict(x="Year", y="Month", color="Success Rate (%)"),
                 x=heatmap_data.columns,
-                y=[calendar.month_abbr[i] for i in heatmap_data.index],
-                color_continuous_scale="RdYlGn",
+                y=heatmap_data.index,
+                color_continuous_scale=custom_rdylgn,
                 text_auto=".1f"
             )
             
@@ -1740,177 +1785,9 @@ with tabs[5]:
                 height=400
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="time_monthly_success_heatmap")
 
-# Transitions tab (improved to handle missing values)
-# with tabs[6]:
-#     st.header("Housing Transitions Analysis")
-    
-    
-    
-#     # Living Situation Transition Analysis with improved Sankey diagram
-#     st.subheader("Housing Situation Flow Analysis")
-    
-#     # Filter out missing values for transition analysis
-#     transition_df = filtered_df.dropna(subset=['LIVING_SITUATION_AT_ENTRY__C', 'LIVING_SITUATION_AT_EXIT__C'])
-    
-#     # Further filter out "Missing" values
-#     transition_df = transition_df[
-#         (transition_df['LIVING_SITUATION_AT_ENTRY__C'] != "Missing") & 
-#         (transition_df['LIVING_SITUATION_AT_EXIT__C'] != "Missing")
-#     ]
-    
-#     if not transition_df.empty:
-#         # Create a better Sankey diagram for transitions
-#         with st.spinner("Generating flow diagram..."):
-#             fig = create_sankey_diagram(
-#                 transition_df, 
-#                 'LIVING_SITUATION_AT_ENTRY__C', 
-#                 'LIVING_SITUATION_AT_EXIT__C'
-#             )
-            
-#             if fig:
-#                 # Fix layout issues by adjusting the figure size and margins
-#                 fig.update_layout(
-#                     height=600,  # Increase height
-#                     width=800,   # Set explicit width
-#                     margin=dict(l=20, r=20, t=40, b=20),  # Adjust margins
-#                     font=dict(size=10),  # Reduce font size for better fit
-#                     autosize=True  # Enable autosize
-#                 )
-                
-#                 st.plotly_chart(fig, use_container_width=True)
-#                 # <h4>How to Read This Diagram</h4>
-#                 # <p>This Sankey diagram shows the flow of clients from their entry living situation (left) to their exit 
-#                 # living situation (right). The width of each flow represents the number of clients who took that path.</p>
-#                 st.markdown("""
-#                 <div class="info-card">
-                
-#                 <p>Wider connections indicate more common transitions. Colors indicate housing stability level:</p>
-#                 <ul>
-#                     <li><span style="color:#e74c3c">■</span> <b>Red</b>: Crisis/Emergency (Stability Score 1-3)</li>
-#                     <li><span style="color:#f39c12">■</span> <b>Orange</b>: Temporary (Stability Score 4-6)</li>
-#                     <li><span style="color:#3498db">■</span> <b>Blue</b>: Transitional (Stability Score 7-9)</li>
-#                     <li><span style="color:#2ecc71">■</span> <b>Green</b>: Stable (Stability Score 10-13)</li>
-#                 </ul>
-#                 </div>
-#                 """, unsafe_allow_html=True)
-#             else:
-#                 st.info("Not enough valid transition data to generate the flow diagram.")
-#     else:
-#         st.info("No valid transition data available.")
-    
-#     # # Add traditional transition analysis as well
-#     # st.subheader("Most Common Housing Transitions")
-    
-#     # # Analyze transitions between entry and exit situations
-#     # success_df = filtered_df[filtered_df['GOAL_STATUS_BINARY'] == 1]
-    
-#     # if not success_df.empty:
-#     #     # Remove missing values
-#     #     transition_df = success_df.dropna(subset=['LIVING_SITUATION_AT_ENTRY__C', 'LIVING_SITUATION_AT_EXIT__C'])
-#     #     transition_df = transition_df[
-#     #         (transition_df['LIVING_SITUATION_AT_ENTRY__C'] != "Missing") & 
-#     #         (transition_df['LIVING_SITUATION_AT_EXIT__C'] != "Missing")
-#     #     ]
-        
-#     #     if not transition_df.empty:
-#     #         # Get counts of each transition
-#     #         transitions = transition_df.groupby(['LIVING_SITUATION_AT_ENTRY__C', 'LIVING_SITUATION_AT_EXIT__C']).size().reset_index()
-#     #         transitions.columns = ['Entry', 'Exit', 'Count']
-            
-#     #         # Calculate proportions
-#     #         total_by_entry = transitions.groupby('Entry')['Count'].sum().reset_index()
-#     #         transitions = transitions.merge(total_by_entry, on='Entry', suffixes=('', '_total'))
-#     #         transitions['Proportion'] = (transitions['Count'] / transitions['Count_total'] * 100).round(1)
-            
-#     #         # Filter for top transitions for readability
-#     #         top_transitions = transitions.sort_values('Count', ascending=False).head(15)
-            
-#     #         fig = px.bar(
-#     #             top_transitions,
-#     #             y='Entry',
-#     #             x='Proportion',
-#     #             color='Exit',
-#     #             labels={'Proportion': 'Proportion (%)', 'Entry': 'Living Situation at Entry'},
-#     #             orientation='h'
-#     #         )
-#     #         fig.update_layout(
-#     #             height=600,
-#     #             legend_title="Living Situation at Exit",
-#     #             plot_bgcolor='rgba(0,0,0,0)'
-#     #         )
-#     #         st.plotly_chart(fig, use_container_width=True)
-            
-#     #         # Add information about top transitions
-#     #         st.markdown("#### Most Common Transitions (Entry → Exit)")
-            
-#     #         top_5_transitions = transitions.sort_values('Count', ascending=False).head(5)
-#     #         for idx, row in top_5_transitions.iterrows():
-#     #             # Determine if this is a positive transition (higher stability)
-#     #             entry_score = housing_severity_scale.get(row['Entry'], 0)
-#     #             exit_score = housing_severity_scale.get(row['Exit'], 0)
-#     #             stability_change = exit_score - entry_score
-                
-#     #             card_class = "success-card" if stability_change > 0 else "warning-card" if stability_change < 0 else "info-card"
-                
-#     #             st.markdown(f"""
-#     #             <div class="{card_class}">
-#     #                 <h5>{row['Entry']} → {row['Exit']}</h5>
-#     #                 <p>Count: {row['Count']} clients ({row['Proportion']:.1f}% of clients from this entry situation)<br>
-#     #                 Stability Change: {stability_change:.1f} points</p>
-#     #             </div>
-#     #             """, unsafe_allow_html=True)
-#     #     else:
-#     #         st.info("No valid transition data available for successful goals.")
-#     # else:
-#     #     st.info("No successful goals in the current filtered data.")
-    
-#     # Transition Matrix with improved styling
-#     st.subheader("Housing Stability Transition Matrix")
-    
-#     # Create a simplified version for the matrix to avoid clutter
-#     if not transition_df.empty:
-#         # Add housing stability categories
-#         transition_df['entry_category'] = pd.cut(
-#             transition_df['LIVING_SITUATION_AT_ENTRY__C'].map(housing_severity_scale),
-#             bins=[0, 3, 6, 9, 13],
-#             labels=['Crisis', 'Temporary', 'Transitional', 'Stable']
-#         )
-        
-#         transition_df['exit_category'] = pd.cut(
-#             transition_df['LIVING_SITUATION_AT_EXIT__C'].map(housing_severity_scale),
-#             bins=[0, 3, 6, 9, 13],
-#             labels=['Crisis', 'Temporary', 'Transitional', 'Stable']
-#         )
-        
-#         # Aggregate transitions by category
-#         category_transitions = pd.crosstab(
-#             transition_df['entry_category'], 
-#             transition_df['exit_category'],
-#             normalize='index'
-#         ) * 100
-        
-#         # Create heatmap with annotations
-#         fig_heatmap = ff.create_annotated_heatmap(
-#             z=category_transitions.values,
-#             x=category_transitions.columns.tolist(),
-#             y=category_transitions.index.tolist(),
-#             colorscale="RdYlGn",
-#             annotation_text=category_transitions.round(1).astype(str).values,
-#             showscale=True
-#         )
-        
-#         fig_heatmap.update_layout(
-#             title="Transition Percentages Between Housing Stability Categories",
-#             height=400,
-#             xaxis=dict(title="Exit Housing Category"),
-#             yaxis=dict(title="Entry Housing Category")
-#         )
-        
-#         st.plotly_chart(fig_heatmap, use_container_width=True)
-    
-# Data explorer tab
+# Data Explorer tab
 with tabs[6]:
     st.header("Data Explorer")
     
@@ -1963,7 +1840,7 @@ with tabs[6]:
         pie_col1, pie_col2, pie_col3 = st.columns(3)
         
         # Function to create pie chart with threshold and improved styling
-        def create_pie_chart(data, title, colors=px.colors.qualitative.Pastel):
+        def create_pie_chart(data, title, colors=color_palette):
             # Apply threshold
             small_categories = data[data["Portion"] < threshold_prop]
             others_percentage = small_categories["Portion"].sum()
@@ -1988,7 +1865,10 @@ with tabs[6]:
                 textinfo='percent+label',
                 insidetextorientation='radial'
             )
-            fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
+            fig.update_layout(
+                margin=dict(t=40, b=0, l=0, r=0),
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
             return fig
         
         # Display pie charts with custom color schemes
@@ -1996,85 +1876,31 @@ with tabs[6]:
             fig_all = create_pie_chart(
                 output_all, 
                 f"All Goals - {selected_column}",
-                px.colors.qualitative.Pastel
+                color_palette
             )
-            st.plotly_chart(fig_all, use_container_width=True)
+            st.plotly_chart(fig_all, use_container_width=True, key=f"pie_all_{selected_column}")
         
         with pie_col2:
             fig_success = create_pie_chart(
                 output_success, 
                 f"Successful Goals - {selected_column}",
-                px.colors.sequential.Greens
+                color_gradient_success
             )
-            st.plotly_chart(fig_success, use_container_width=True)
+            st.plotly_chart(fig_success, use_container_width=True, key=f"pie_success_{selected_column}")
         
         with pie_col3:
             fig_failure = create_pie_chart(
                 output_failure, 
                 f"Unsuccessful Goals - {selected_column}",
-                px.colors.sequential.Reds
+                color_gradient_failure
             )
-            st.plotly_chart(fig_failure, use_container_width=True)
-    
-    # Housing severity analysis by categories
-    # st.subheader("Housing Severity Analysis")
-    
-    # # Allow user to select column for analysis
-    # severity_column = st.selectbox(
-    #     "Select category to analyze by housing severity:", 
-    #     pie_chart_columns, 
-    #     key="severity_select"
-    # )
-    
-    # if severity_column in filtered_df.columns:
-    #     # Add housing severity scores to the filtered data
-    #     severity_analysis_df = filtered_df.copy()
-    #     severity_analysis_df['entry_severity'] = severity_analysis_df['LIVING_SITUATION_AT_ENTRY__C'].map(housing_severity_scale)
-        
-    #     # Calculate average severity by selected category
-    #     severity_by_category = severity_analysis_df.groupby(severity_column)['entry_severity'].mean().sort_values()
-        
-    #     fig = px.bar(
-    #         severity_by_category.reset_index(),
-    #         x=severity_column,
-    #         y='entry_severity',
-    #         text=severity_by_category.values.round(2),
-    #         color='entry_severity',
-    #         color_continuous_scale='RdYlGn',
-    #         labels={
-    #             severity_column: severity_column.replace('__C', ''),
-    #             'entry_severity': 'Avg. Housing Stability Score'
-    #         }
-    #     )
-    #     fig.update_traces(textposition='outside')
-    #     fig.update_layout(
-    #         xaxis_title=severity_column.replace('__C', ''),
-    #         yaxis_title='Average Housing Stability Score',
-    #         xaxis_tickangle=45,
-    #         plot_bgcolor='rgba(0,0,0,0)',
-    #         height=700
-    #     )
-    #     st.plotly_chart(fig, use_container_width=True)
-    
-    # # Raw data explorer
-    # st.subheader("Raw Data Explorer")
-    # if st.checkbox("Show Raw Data"):
-    #     st.dataframe(filtered_df)
-        
-    #     # Add a CSV download button
-    #     csv = filtered_df.to_csv(index=False)
-    #     st.download_button(
-    #         label="Download Data as CSV",
-    #         data=csv,
-    #         file_name="homelessness_services_data.csv",
-    #         mime="text/csv"
-    #     )
+            st.plotly_chart(fig_failure, use_container_width=True, key=f"pie_failure_{selected_column}")
 
 # Footer
 st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666;">
-<p>Dashboard created for NGO homelessness services data analysis</p>
+st.markdown(f"""
+<div style="text-align: center; color: {color_dark};">
+<p>Dashboard created for TechBridge HomeBridger services data analysis</p>
 <p>Last updated: March 2025</p>
 </div>
 """, unsafe_allow_html=True)
