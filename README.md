@@ -70,6 +70,7 @@ streamlit run dashboard.py --server.port 8501
 ssh -T -o StrictHostKeyChecking=no -o ExitOnForwardFailure=yes -R 80:localhost:8501 localhost.run
 ```
 *Note: This requires the command to be run each time you want to make the dashboard accessible.*
+*--server.port xxxx is optional, it is used to specify the port number of the dashboard.*
 
 ### Running the Service Optimization Analysis
 
