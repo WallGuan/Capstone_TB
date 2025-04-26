@@ -4,7 +4,7 @@
 
 ## Description
 
-TechBridge is an Atlanta-based tech nonprofit organization that provides enterprise-grade software for nonprofit organizations in the areas of hunger relief, homelessness, social justice, and workforce development at below-market cost. This capstone project analyzed internal service data from the HomeBridger platform to explore the value of data sharing in maximizing the collective impact and reach of nonprofit organizations. The goal was to provide actionable insights for optimizing service delivery and improving client outcomes. For more detailed information, please refer to our **[presentation slides](techbridge_presentation_slides.pdf)** and **[white paper](techbridge_white_paper.pdf)**.
+**[TechBridge](https://techbridge.org)** is an Atlanta-based tech nonprofit organization that provides enterprise-grade software for nonprofit organizations in the areas of hunger relief, homelessness, social justice, and workforce development at below-market cost. This capstone project analyzed internal service data from the HomeBridger platform to explore the value of data sharing in maximizing the collective impact and reach of nonprofit organizations. The goal was to provide actionable insights for optimizing service delivery and improving client outcomes. For more detailed information, please refer to our **[presentation slides](techbridge_presentation_slides.pdf)** and **[white paper](techbridge_white_paper.pdf)**.
 
 **Key Findings:**
 
