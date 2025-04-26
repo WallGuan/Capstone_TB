@@ -1,10 +1,10 @@
-# Emory QTM 498R Capstone Project: TechBridge HomeBridger Analytics
+# Emory University QTM 498R Capstone Project: TechBridge HomeBridger
 
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org) [![R](https://img.shields.io/badge/R-276DC3?style=for-the-badge&logo=r&logoColor=white)](https://www.r-project.org) [![Jupyter Notebook](https://img.shields.io/badge/Jupyter-F37626?style=for-the-badge&logo=jupyter&logoColor=white)](https://jupyter.org) [![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org) [![NumPy](https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white)](https://numpy.org) [![Scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/stable/) [![Matplotlib](https://img.shields.io/badge/Matplotlib-11557c?style=for-the-badge&logo=matplotlib&logoColor=white)](https://matplotlib.org) [![Seaborn](https://img.shields.io/badge/Seaborn-88d1de?style=for-the-badge&logo=seaborn&logoColor=white)](https://seaborn.pydata.org) [![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com) [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
 
 ## Description
 
-This Emory University capstone project, in collaboration with TechBridge, analyzed collaborative service data from the HomeBridger platform to enhance nonprofit effectiveness. The goal was to provide actionable insights for optimizing service delivery and improving client outcomes. For more detailed information, please refer to our [final presentation](techbridge_presentation_slides.pdf) and [white paper](techbridge_white_paper.pdf).
+TechBridge is an Atlanta-based tech nonprofit organization that provides enterprise-grade software for nonprofit organizations in the areas of hunger relief, homelessness, social justice, and workforce development at below-market cost. This capstone project analyzed internal service data from the HomeBridger platform to explore the value of data sharing in maximizing the collective impact and reach of nonprofit organizations. The goal was to provide actionable insights for optimizing service delivery and improving client outcomes. For more detailed information, please refer to our **[presentation slides](techbridge_presentation_slides.pdf)** and **[white paper](techbridge_white_paper.pdf)**.
 
 **Key Findings:**
 
@@ -19,7 +19,7 @@ This Emory University capstone project, in collaboration with TechBridge, analyz
 
 Our findings led to recommendations for TechBridge and partner NGOs focused on:
 *   Enhancing data quality and collection practices.
-*   Optimizing the sequencing and timing of service delivery.
+*   Optimizing the sequence and timing of service delivery.
 *   Addressing identified equity gaps.
 *   Implementing predictive analytics for proactive support.
 
@@ -97,5 +97,6 @@ Capstone_TB/
 ├── techbridge_presentation_slides.pdf
 └── techbridge_white_paper.pdf
 ```
-
+---
+This project was developed by Anna Choi, Mary Guan, Wendy Guerrero, Nate Hu, Nick Richards, Katie Shao, and Laura Wang with the guidance and support of Professor Jiwon Kim, TechBridge, and the Emory University QTM Department.
 
